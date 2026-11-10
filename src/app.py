@@ -7,8 +7,10 @@
 import csv
 import json
 import os
+import re
 import shutil
 import sys
+import uuid
 from datetime import datetime
 
 import tkinter as tk
@@ -22,6 +24,204 @@ LABELS = {
 }
 CABINETS = ["一号柜", "二号柜", "三号柜", "四号柜"]
 CATS = ["无机盐", "有机溶剂", "酸碱", "指示剂", "氧化剂", "还原剂", "生物试剂", "其他"]
+
+# 导入时允许的表头别名（写 Excel 时不用刻意对齐我们的列名）
+HEADER_ALIASES = {
+    "name": ("名称", "品名", "试剂名称", "材料名称", "物料名称", "中文名", "试剂", "材料", "name"),
+    "alias": ("别名", "英文名", "化学式", "分子式", "英文", "又名", "alias"),
+    "cas": ("cas号", "cas", "casno", "cas编号", "cas no"),
+    "spec": ("规格", "型号", "包装", "纯度", "规格型号", "spec"),
+    "category": ("类型", "分类", "类别", "种类", "category"),
+    "cabinet": ("柜号", "柜子", "柜", "存放柜", "柜位"),
+    "slot": ("柜内位置", "位置", "存放位置", "层", "层位", "具体位置", "slot"),
+    "qty": ("数量", "库存", "剩余", "余量", "qty"),
+    "note": ("备注", "说明", "note", "remark"),
+}
+
+
+def normalize_header(text):
+    """去掉括号备注、空格和结尾标点，统一小写，便于和别名表匹配。"""
+    s = str(text or "")
+    s = re.sub(r"[（(].*?[)）]", "", s)
+    s = s.replace(" ", "").replace("\u3000", "").replace("\t", "")
+    return s.strip(" .。:*：、,，;；").lower()
+
+
+ALIAS_INDEX = {}
+for _key, _names in HEADER_ALIASES.items():
+    for _n in _names:
+        ALIAS_INDEX.setdefault(normalize_header(_n), _key)
+
+
+def map_columns(headers):
+    mapping = {}
+    for idx, h in enumerate(headers):
+        key = ALIAS_INDEX.get(normalize_header(h))
+        if key and key not in mapping:
+            mapping[key] = idx
+    return mapping
+
+
+def detect_header(rows, max_scan=10):
+    """在前 10 行里找最像表头的一行（必须有「名称」）。返回 (行号, 列映射)。"""
+    best = None
+    for i, row in enumerate(rows[:max_scan]):
+        m = map_columns(row)
+        if "name" not in m:
+            continue
+        score = len(m)
+        if best is None or score > best[1]:
+            best = (i, score, m)
+    if not best:
+        return None
+    return best[0], best[2]
+
+
+def split_location(cabinet, slot):
+    """「一号柜 二层 左」这种合并写法，拆成柜号 + 柜内位置。"""
+    cabinet = (cabinet or "").strip()
+    slot = (slot or "").strip()
+    if not cabinet and "柜" in slot:
+        i = slot.index("柜")
+        return slot[: i + 1].strip(), slot[i + 1:].strip(" ·-—,，、/")
+    return cabinet, slot
+
+
+def _col_index(ref):
+    """A1 → 0, C3 → 2。"""
+    letters = "".join(ch for ch in str(ref) if ch.isalpha())
+    n = 0
+    for ch in letters:
+        n = n * 26 + (ord(ch.upper()) - 64)
+    return n - 1
+
+
+def _sheet_rows(xml_bytes, shared):
+    """解析一张 worksheet 的 XML，返回二维字符串列表。"""
+    import xml.etree.ElementTree as ET
+
+    NS = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
+    root = ET.fromstring(xml_bytes)
+    data = root.find(NS + "sheetData")
+    rows = []
+    if data is None:
+        return rows
+    for row in data.findall(NS + "row"):
+        cells = {}
+        for c in row.findall(NS + "c"):
+            idx = _col_index(c.get("r") or "")
+            if idx < 0:
+                continue
+            t = c.get("t")
+            v = c.find(NS + "v")
+            if t == "s" and v is not None and v.text is not None:
+                try:
+                    val = shared[int(v.text)]
+                except (ValueError, IndexError):
+                    val = ""
+            elif t == "inlineStr":
+                val = "".join(x.text or "" for x in c.iter(NS + "t"))
+            elif t == "b" and v is not None:
+                val = "TRUE" if v.text == "1" else "FALSE"
+            else:
+                val = v.text if v is not None and v.text is not None else ""
+            cells[idx] = str(val).strip()
+        if cells:
+            width = max(cells) + 1
+            rows.append([cells.get(i, "") for i in range(width)])
+        else:
+            rows.append([])
+    return rows
+
+
+def read_xlsx(path):
+    """用标准库直接读 .xlsx（不依赖 openpyxl，避免把 numpy/Pillow 一起打包）。"""
+    import xml.etree.ElementTree as ET
+    import zipfile
+
+    NS = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
+    RID = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id"
+    PKG = "{http://schemas.openxmlformats.org/package/2006/relationships}"
+
+    with zipfile.ZipFile(path) as z:
+        names = set(z.namelist())
+        shared = []
+        if "xl/sharedStrings.xml" in names:
+            root = ET.fromstring(z.read("xl/sharedStrings.xml"))
+            for si in root.findall(NS + "si"):
+                shared.append("".join(t.text or "" for t in si.iter(NS + "t")))
+
+        rels = {}
+        if "xl/_rels/workbook.xml.rels" in names:
+            rr = ET.fromstring(z.read("xl/_rels/workbook.xml.rels"))
+            for rel in rr.findall(PKG + "Relationship"):
+                rels[rel.get("Id")] = rel.get("Target", "")
+
+        wb = ET.fromstring(z.read("xl/workbook.xml"))
+        sheets_node = wb.find(NS + "sheets")
+        if sheets_node is None:
+            return []
+
+        candidates = []
+        for sh in sheets_node.findall(NS + "sheet"):
+            target = rels.get(sh.get(RID), "")
+            if not target:
+                continue
+            target = target.lstrip("/")
+            if not target.startswith("xl/"):
+                target = "xl/" + target
+            if target in names:
+                candidates.append(target)
+
+        sheets = []
+        for target in candidates[:8]:
+            rows = _sheet_rows(z.read(target), shared)
+            if any(any(c for c in r) for r in rows):
+                sheets.append(rows)
+        if not sheets:
+            return []
+        for rows in sheets:  # 优先用有表头的那张表
+            if detect_header(rows):
+                return rows
+        return sheets[0]
+
+
+def read_table(path):
+    """读 .xlsx/.xlsm 或 .csv，返回二维字符串列表。"""
+    ext = os.path.splitext(path)[1].lower()
+    if ext in (".xlsx", ".xlsm"):
+        return read_xlsx(path)
+    if ext == ".xls":
+        raise RuntimeError("不支持旧版 .xls。请在 Excel 里「另存为」.xlsx 或 CSV 后再导入。")
+    with open(path, "r", encoding="utf-8-sig", newline="") as f:
+        return [list(r) for r in csv.reader(f)]
+
+
+def rows_to_items(rows, header_row, mapping):
+    items = []
+    for row in rows[header_row + 1:]:
+        def cell(key):
+            i = mapping.get(key)
+            if i is None or i >= len(row) or row[i] is None:
+                return ""
+            return str(row[i]).strip()
+
+        name = cell("name")
+        if not name:
+            continue
+        cabinet, slot = split_location(cell("cabinet"), cell("slot"))
+        items.append({
+            "name": name, "alias": cell("alias"), "cas": cell("cas"), "spec": cell("spec"),
+            "category": cell("category"), "cabinet": cabinet, "slot": slot,
+            "qty": cell("qty"), "note": cell("note"),
+        })
+    return items
+
+
+
+def new_id():
+    """条目 id：同一毫秒批量导入也不会重号。"""
+    return "i" + uuid.uuid4().hex[:12]
 
 
 def app_dir():
@@ -53,7 +253,7 @@ def load_items():
             if not isinstance(it, dict) or not str(it.get("name", "")).strip():
                 continue
             row = {k: str(it.get(k) if it.get(k) is not None else "").strip() for k in FIELDS}
-            row["id"] = str(it.get("id") or ("i" + str(len(out))))
+            row["id"] = str(it.get("id") or new_id())
             row["updatedAt"] = int(it.get("updatedAt") or 0)
             out.append(row)
         return out
@@ -377,7 +577,7 @@ class App:
                     break
         else:
             data = dict(data)
-            data["id"] = "i%d" % (int(datetime.now().timestamp() * 1000) % 10 ** 12)
+            data["id"] = new_id()
             data["updatedAt"] = int(datetime.now().timestamp() * 1000)
             self.items.append(data)
         self.save()
@@ -435,22 +635,36 @@ class App:
     def data_menu(self):
         win = tk.Toplevel(self.root)
         win.title("导入 / 导出")
-        win.geometry("420x300")
+        win.geometry("440x360")
         win.transient(self.root)
         f = ttk.Frame(win, padding=18)
         f.pack(fill="both", expand=True)
         ttk.Label(f, text="数据文件：", font=("Microsoft YaHei UI", 10, "bold")).pack(anchor="w")
-        ttk.Label(f, text=DATA_FILE, wraplength=360, foreground="#666").pack(anchor="w", pady=(0, 12))
+        ttk.Label(f, text=DATA_FILE, wraplength=370, foreground="#666").pack(anchor="w", pady=(0, 12))
         for text, cmd in (
             ("导出备份（JSON）", self.export_json),
             ("从备份导入（JSON）", self.import_json),
             ("导出表格（CSV，Excel 可开）", self.export_csv),
-            ("从 CSV 批量导入", self.import_csv),
+            ("从 Excel / CSV 批量导入", self.import_table),
+            ("导出导入模板（CSV）", self.export_template),
         ):
             ttk.Button(f, text=text, command=cmd).pack(fill="x", pady=3)
-        ttk.Label(f, text="CSV 表头：名称,别名,CAS号,规格,类型,柜号,位置,数量,备注",
-                  foreground="#666", wraplength=360).pack(anchor="w", pady=(10, 0))
+        ttk.Label(f, text="支持 .xlsx 和 .csv，会自动识别列名（名称/品名、柜号/柜子、位置等）。\n"
+                          "「位置」写成“一号柜 二层 左”也能自动拆开。",
+                  foreground="#666", wraplength=370).pack(anchor="w", pady=(10, 0))
         ttk.Button(f, text="关闭", command=win.destroy).pack(anchor="e", pady=(8, 0))
+
+    def export_template(self):
+        path = filedialog.asksaveasfilename(defaultextension=".csv", initialfile="试剂柜导入模板.csv",
+                                            filetypes=[("CSV", "*.csv")])
+        if not path:
+            return
+        with open(path, "w", encoding="utf-8-sig", newline="") as f:
+            w = csv.writer(f)
+            w.writerow(["名称", "别名", "CAS号", "规格", "类型", "柜号", "位置", "数量", "备注"])
+            w.writerow(["氯化钠", "NaCl 食盐", "7647-14-5", "AR 500g", "无机盐", "一号柜", "二层 左", "2 瓶", ""])
+        messagebox.showinfo(APP_NAME, "模板已保存到：\n" + path + "\n\n按这个表头填好，再用「从 Excel / CSV 批量导入」。")
+
 
     def export_json(self):
         path = filedialog.asksaveasfilename(defaultextension=".json", initialfile="试剂柜备份.json",
@@ -488,37 +702,42 @@ class App:
                 w.writerow([it.get(k, "") for k in FIELDS])
         messagebox.showinfo(APP_NAME, "已导出到：\n" + path)
 
-    def import_csv(self):
-        path = filedialog.askopenfilename(filetypes=[("CSV", "*.csv")])
+    def import_table(self):
+        path = filedialog.askopenfilename(
+            title="选择要导入的 Excel 或 CSV",
+            filetypes=[("Excel / CSV", "*.xlsx *.xlsm *.csv"),
+                       ("Excel 工作簿", "*.xlsx *.xlsm"),
+                       ("CSV 文件", "*.csv")])
         if not path:
             return
         try:
-            with open(path, "r", encoding="utf-8-sig", newline="") as f:
-                rows = list(csv.reader(f))
-            if len(rows) < 2:
-                raise ValueError("CSV 里没有数据行")
-            head = [h.strip() for h in rows[0]]
-            mapping = {}
-            for idx, name in enumerate(head):
-                for key, label in LABELS.items():
-                    if name in (label, label.replace(" / ", "")):
-                        mapping[key] = idx
-            if "name" not in mapping:
-                raise ValueError("没有找到「名称」列")
-            arr = []
-            for r in rows[1:]:
-                if not any(c.strip() for c in r):
-                    continue
-                d = {k: (r[i].strip() if i < len(r) else "") for k, i in mapping.items()}
-                if d.get("name"):
-                    arr.append(d)
-            self.merge(arr)
-            messagebox.showinfo(APP_NAME, "导入完成，当前共 %d 条" % len(self.items))
+            rows = read_table(path)
+            found = detect_header(rows)
+            if not found:
+                raise ValueError("没找到「名称」列。\n\n表头里需要有「名称 / 品名 / 试剂名称」之类的列名；"
+                                 "如果第一行是标题，程序会自动往下找 10 行。")
+            header_row, mapping = found
+            items = rows_to_items(rows, header_row, mapping)
+            if not items:
+                raise ValueError("没有读到有效数据行（「名称」为空的行会被跳过）。")
+
+            heads = rows[header_row]
+            desc = "\n".join("    %s  ←  %s" % (LABELS[k], heads[i]) for k, i in mapping.items())
+            if not messagebox.askyesno(
+                    APP_NAME,
+                    "识别到 %d 行数据。\n\n列对应关系：\n%s\n\n"
+                    "导入时按「名称 + 柜号 + 位置」去重，重复的会更新。继续吗？" % (len(items), desc)):
+                return
+
+            added, updated = self.merge(items)
+            messagebox.showinfo(APP_NAME, "导入完成：新增 %d 条，更新 %d 条，当前共 %d 条。"
+                                % (added, updated, len(self.items)))
         except Exception as exc:
-            messagebox.showerror(APP_NAME, "导入失败：%r" % (exc,))
+            messagebox.showerror(APP_NAME, "导入失败：\n%s" % exc)
 
     def merge(self, arr):
         index = {(x.get("name"), x.get("cabinet"), x.get("slot")): x for x in self.items}
+        added = updated = 0
         for raw in arr:
             d = {k: str(raw.get(k, "") or "").strip() for k in FIELDS}
             if not d["name"]:
@@ -526,13 +745,16 @@ class App:
             key = (d["name"], d["cabinet"], d["slot"])
             if key in index:
                 index[key].update(d)
+                updated += 1
             else:
-                d["id"] = "i%d" % (int(datetime.now().timestamp() * 1000) % 10 ** 12)
+                d["id"] = new_id()
                 d["updatedAt"] = int(datetime.now().timestamp() * 1000)
                 self.items.append(d)
                 index[key] = d
+                added += 1
         self.save()
         self.refresh()
+        return added, updated
 
     def on_close(self):
         self.save()
@@ -604,5 +826,21 @@ def main():
     root.mainloop()
 
 
+def cli_import_test(src, out):
+    """开发自检用：解析一个 Excel/CSV，把识别结果写到 out（窗口程序没有 stdout）。"""
+    rows = read_table(src)
+    found = detect_header(rows)
+    if not found:
+        raise SystemExit("no header")
+    items = rows_to_items(rows, found[0], found[1])
+    with open(out, "w", encoding="utf-8") as f:
+        json.dump({"count": len(items), "first": items[0] if items else None,
+                   "columns": {k: rows[found[0]][i] for k, i in found[1].items()}},
+                  f, ensure_ascii=False, indent=2)
+
+
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) >= 4 and sys.argv[1] == "--import-test":
+        cli_import_test(sys.argv[2], sys.argv[3])
+    else:
+        main()
