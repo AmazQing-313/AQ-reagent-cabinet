@@ -1,0 +1,1227 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="light" />
+<title>试剂柜速查 · 离线版</title>
+<style>
+  :root{
+    --bg:#f4f6f8; --card:#ffffff; --ink:#0f172a; --muted:#64748b;
+    --line:#e2e8f0; --line-strong:#cbd5e1;
+    --accent:#0d9488; --accent-deep:#0f766e; --accent-soft:#f0fdfa;
+    --danger:#dc2626; --warn:#b45309;
+    --radius:14px;
+    --shadow:0 1px 2px rgba(15,23,42,.04), 0 8px 24px rgba(15,23,42,.06);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:var(--bg); color:var(--ink);
+    font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei","PingFang SC","Hiragino Sans GB",sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  body.locked{overflow:hidden}
+  button,input,select{font-family:inherit}
+  button{cursor:pointer}
+
+  /* ---------- 顶栏 ---------- */
+  .topbar{
+    position:sticky; top:0; z-index:30;
+    display:flex; align-items:center; gap:10px;
+    padding:12px 20px;
+    background:rgba(255,255,255,.9); backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--line);
+  }
+  .brand{display:flex; align-items:baseline; gap:8px; min-width:0}
+  .brand b{font-size:17px; letter-spacing:.2px; white-space:nowrap}
+  .brand .tag{
+    font-size:11.5px; color:var(--accent-deep); background:var(--accent-soft);
+    border:1px solid #ccfbf1; padding:2px 7px; border-radius:999px; white-space:nowrap;
+  }
+  .topbar .spacer{flex:1}
+  .btn{
+    font-size:14px; color:var(--ink); background:#fff;
+    border:1px solid var(--line-strong); border-radius:10px;
+    padding:8px 14px; transition:.15s; white-space:nowrap;
+  }
+  .btn:hover{background:#f8fafc; border-color:#94a3b8}
+  .btn.primary{background:var(--accent); border-color:var(--accent); color:#fff}
+  .btn.primary:hover{background:var(--accent-deep)}
+  .btn.danger{color:var(--danger); border-color:#fecaca}
+  .btn.danger:hover{background:#fef2f2}
+
+  /* ---------- 主体 ---------- */
+  main{max-width:1120px; margin:0 auto; padding:18px 20px 80px}
+
+  .searchwrap{position:relative; margin-bottom:12px}
+  .searchwrap .ico{
+    position:absolute; left:16px; top:50%; transform:translateY(-50%);
+    color:var(--muted); pointer-events:none;
+  }
+  #q{
+    width:100%; padding:15px 46px 15px 46px; font-size:16px;
+    border:1px solid var(--line-strong); border-radius:16px;
+    background:#fff; color:var(--ink); outline:none;
+    box-shadow:var(--shadow); transition:.15s;
+  }
+  #q::placeholder{color:#94a3b8}
+  #q:focus{border-color:var(--accent); box-shadow:0 0 0 4px rgba(13,148,136,.13)}
+  .qclear{
+    position:absolute; right:10px; top:50%; transform:translateY(-50%);
+    width:28px; height:28px; border:0; border-radius:50%;
+    background:#eef2f6; color:var(--muted); font-size:13px; line-height:1;
+  }
+  .qclear:hover{background:#e2e8f0; color:var(--ink)}
+  #q::-webkit-search-cancel-button{-webkit-appearance:none; appearance:none}
+
+  .filters{display:flex; flex-wrap:wrap; gap:7px; margin-bottom:8px}
+  .filters:last-of-type{margin-bottom:2px}
+  .chip{
+    display:inline-flex; align-items:center; gap:6px;
+    padding:6px 12px; border-radius:999px; font-size:13px;
+    color:var(--muted); background:#fff; border:1px solid var(--line);
+    transition:.15s;
+  }
+  .chip:hover{border-color:var(--line-strong); color:var(--ink)}
+  .chip .n{font-size:11.5px; color:#94a3b8; font-variant-numeric:tabular-nums}
+  .chip.on{background:#0f172a; border-color:#0f172a; color:#fff}
+  .chip.on .n{color:#cbd5e1}
+
+  .meta{
+    display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+    margin:16px 2px 12px; font-size:13px; color:var(--muted);
+  }
+  .meta #status{font-size:12.5px; color:#94a3b8}
+  .meta #status.warn{color:var(--warn); font-weight:600}
+  .meta .right{margin-left:auto; display:flex; align-items:center; gap:10px}
+  .meta select{
+    font-size:13px; color:var(--ink); background:#fff;
+    border:1px solid var(--line); border-radius:9px; padding:5px 8px;
+  }
+
+  .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(285px,1fr)); gap:12px}
+
+  .card{
+    position:relative;
+    background:var(--card); border:1px solid var(--line);
+    border-left:4px solid var(--c);
+    border-radius:var(--radius); padding:13px 15px 12px;
+    box-shadow:var(--shadow); transition:.15s;
+  }
+  .card:hover{border-color:var(--line-strong); border-left-color:var(--c); transform:translateY(-1px)}
+  .card h3{margin:0 2px 1px 0; font-size:16.5px; font-weight:650; letter-spacing:.2px; padding-right:52px}
+  .card .sub{min-height:18px; margin-bottom:9px; font-size:12.5px; color:var(--muted); word-break:break-word}
+  .loc{
+    display:inline-flex; align-items:center; gap:6px;
+    padding:4px 10px; border-radius:9px; border:1px solid;
+    font-size:13.5px; font-weight:600;
+  }
+  .loc svg{flex:none; opacity:.9}
+  .card .tags{display:flex; flex-wrap:wrap; gap:6px; margin-top:9px}
+  .t{font-size:12px; color:var(--muted); background:#f8fafc; border:1px solid var(--line); border-radius:7px; padding:2px 7px}
+  .t.qty{color:var(--ink); background:#fff}
+  .card .acts{position:absolute; top:9px; right:9px; display:flex; gap:2px; opacity:0; transition:.15s}
+  .card:hover .acts, .card:focus-within .acts{opacity:1}
+  .icon-btn{
+    width:27px; height:27px; display:grid; place-items:center;
+    border:0; border-radius:8px; background:transparent; color:#94a3b8; font-size:14px; line-height:1;
+  }
+  .icon-btn:hover{background:#f1f5f9; color:var(--ink)}
+  .icon-btn.del:hover{background:#fef2f2; color:var(--danger)}
+
+  mark{background:#fde68a; color:inherit; border-radius:3px; padding:0 1px}
+
+  .empty{
+    grid-column:1/-1; text-align:center; padding:64px 20px;
+    background:#fff; border:1px dashed var(--line-strong); border-radius:18px;
+  }
+  .empty .big{font-size:18px; font-weight:650; margin-bottom:6px}
+  .empty p{margin:0 0 18px; color:var(--muted); font-size:13.5px}
+
+  /* ---------- 弹层 ---------- */
+  .overlay{
+    position:fixed; inset:0; z-index:60; display:none;
+    padding:36px 16px; overflow:auto;
+    background:rgba(15,23,42,.45);
+  }
+  .overlay.on{display:flex; align-items:flex-start; justify-content:center}
+  .modal{
+    width:100%; max-width:560px; background:#fff; border-radius:18px;
+    padding:22px 22px 18px; box-shadow:0 24px 60px rgba(15,23,42,.28);
+    animation:pop .16s ease-out;
+  }
+  .modal.wide{max-width:720px}
+  @keyframes pop{from{transform:translateY(8px); opacity:.6} to{transform:none; opacity:1}}
+  .modal h2{margin:0 0 4px; font-size:18px; letter-spacing:.2px}
+  .modal .hint{margin:0 0 16px; font-size:12.5px; color:var(--muted); line-height:1.6}
+  .modal-head{display:flex; align-items:center; margin-bottom:6px}
+  .modal-head h2{flex:1}
+  .fields{display:grid; grid-template-columns:1fr 1fr; gap:12px}
+  .f{display:flex; flex-direction:column; gap:5px; font-size:12.5px; color:var(--muted)}
+  .f.full{grid-column:1/-1}
+  .f input{
+    font-size:14px; color:var(--ink); padding:9px 11px;
+    border:1px solid var(--line-strong); border-radius:10px; outline:none; background:#fff;
+  }
+  .f input:focus{border-color:var(--accent); box-shadow:0 0 0 3px rgba(13,148,136,.12)}
+  .modal-actions{display:flex; justify-content:flex-end; gap:8px; margin-top:20px}
+
+  .stat-cards{display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin:4px 0 22px}
+  .sc{background:#f8fafc; border:1px solid var(--line); border-radius:12px; padding:12px 14px}
+  .sc b{display:block; font-size:22px; font-variant-numeric:tabular-nums; line-height:1.2}
+  .sc span{font-size:12px; color:var(--muted)}
+  .sc.warn b{color:var(--warn)}
+  .modal h3{font-size:13px; color:var(--muted); font-weight:600; margin:18px 0 8px; letter-spacing:.4px}
+
+  .bar-row{
+    display:grid; grid-template-columns:96px 1fr 40px; align-items:center; gap:10px;
+    padding:6px 4px; border-radius:8px; cursor:pointer; font-size:13px;
+  }
+  .bar-row:hover{background:#f8fafc}
+  .bar-row .lab{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .bar-row .track{height:9px; background:#eef2f6; border-radius:99px; overflow:hidden}
+  .bar-row .fill{height:100%; border-radius:99px; background:var(--accent); opacity:.75}
+  .bar-row .num{text-align:right; color:var(--muted); font-variant-numeric:tabular-nums}
+
+  .btn-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:6px 0 4px}
+  .btn-grid .btn{padding:12px 14px; text-align:left}
+  #btnQuit{grid-column:1/-1}
+
+  .bye{position:fixed; inset:0; z-index:200; display:grid; place-items:center; padding:24px; background:#f4f6f8; text-align:center}
+  .bye h2{margin:0 0 8px; font-size:20px}
+  .bye p{margin:0; color:var(--muted); font-size:14px}
+
+  /* ---------- 提示条 ---------- */
+  .tip{
+    display:none; align-items:center; gap:10px; flex-wrap:wrap;
+    margin:0 0 14px; padding:10px 14px; font-size:13px;
+    background:#fffbeb; border:1px solid #fde68a; border-radius:12px; color:#92400e;
+  }
+  .tip.on{display:flex}
+  .tip .spacer{flex:1}
+  .tip button{
+    font-size:12.5px; padding:4px 10px; border-radius:8px;
+    border:1px solid #fcd34d; background:#fff; color:#92400e;
+  }
+  .tip button:hover{background:#fef3c7}
+
+  /* ---------- 提示 ---------- */
+  #toast{
+    position:fixed; left:50%; bottom:30px; z-index:99;
+    transform:translateX(-50%) translateY(12px);
+    background:#0f172a; color:#fff; font-size:13.5px;
+    padding:10px 18px; border-radius:11px; box-shadow:0 10px 30px rgba(15,23,42,.3);
+    opacity:0; pointer-events:none; transition:.22s;
+  }
+  #toast.on{opacity:1; transform:translateX(-50%)}
+
+  @media (hover:none){
+    .card .acts{opacity:1}
+  }
+
+  @media (max-width:640px){
+    .topbar{padding:10px 14px; gap:6px}
+    .brand .tag{display:none}
+    .btn{padding:7px 11px; font-size:13px}
+    main{padding:14px 14px 70px}
+    .fields{grid-template-columns:1fr}
+    .stat-cards{grid-template-columns:1fr 1fr}
+    .grid{grid-template-columns:1fr}
+    .bar-row{grid-template-columns:78px 1fr 34px}
+    .meta #status{display:none}
+  }
+
+  @media print{
+    @page{margin:12mm}
+    body{background:#fff}
+    .topbar,.searchwrap,.filters,.meta .right,.tip,.acts,.qclear,.overlay,#toast{display:none !important}
+    main{max-width:none; padding:0}
+    .meta{margin:0 0 8px}
+    .grid{grid-template-columns:1fr 1fr; gap:8px}
+    .card{box-shadow:none; break-inside:avoid; page-break-inside:avoid}
+    .card .acts{display:none}
+    .print-head{display:block !important; margin-bottom:10px; font-size:14px; font-weight:700}
+  }
+  .print-head{display:none}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand"><b>试剂柜速查</b><span class="tag">离线 · 存在本机</span></div>
+  <div class="spacer"></div>
+  <button class="btn" id="btnStats" title="按柜、按类型统计">统计</button>
+  <button class="btn" id="btnData" title="导入导出与备份">数据</button>
+  <button class="btn primary" id="btnAdd">+ 新增</button>
+</header>
+
+<main>
+  <div class="tip" id="tip">
+    <span>已载入 9 条示例数据，可以直接试试搜「氯化钠」或「NaCl」。</span>
+    <span class="spacer"></span>
+    <button id="tipClear">清空示例，开始录入</button>
+    <button id="tipClose">保留示例</button>
+  </div>
+
+  <div class="searchwrap">
+    <svg class="ico" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>
+    <input id="q" type="search" autocomplete="off" spellcheck="false"
+           placeholder="搜名称 / 别名 / 化学式 / CAS / 柜号…   例如：氯化钠、NaCl、一号柜" />
+    <button class="qclear" id="qClear" hidden title="清空">✕</button>
+  </div>
+
+  <div class="filters" id="cabChips"></div>
+  <div class="filters" id="catChips"></div>
+
+  <div class="meta">
+    <span id="count"></span>
+    <span class="right">
+      <select id="sort" title="排序">
+        <option value="cab">按柜位排</option>
+        <option value="name">按名称排</option>
+        <option value="cat">按类型排</option>
+        <option value="recent">最近更新</option>
+      </select>
+      <span id="status">离线可用</span>
+    </span>
+  </div>
+
+  <div class="print-head" id="printHead"></div>
+  <div class="grid" id="list"></div>
+</main>
+
+<!-- 新增 / 编辑 -->
+<div class="overlay" id="overlay">
+  <form class="modal" id="form" novalidate>
+    <h2 id="formTitle">新增材料</h2>
+    <p class="hint">带 * 为必填。「别名」里可以写化学式、英文名、俗名，搜索时都能命中。</p>
+    <div class="fields">
+      <label class="f full"><span>名称 *</span><input id="fName" autocomplete="off" placeholder="如：氯化钠" /></label>
+      <label class="f full"><span>别名 / 化学式 / 英文名</span><input id="fAlias" autocomplete="off" placeholder="如：NaCl sodium chloride 食盐" /></label>
+      <label class="f"><span>CAS 号</span><input id="fCas" autocomplete="off" placeholder="如：7647-14-5" /></label>
+      <label class="f"><span>规格</span><input id="fSpec" autocomplete="off" placeholder="如：AR 500g" /></label>
+      <label class="f"><span>类型</span><input id="fCat" list="catList" autocomplete="off" placeholder="如：无机盐" /></label>
+      <label class="f"><span>柜号</span><input id="fCab" list="cabList" autocomplete="off" placeholder="如：一号柜" /></label>
+      <label class="f"><span>柜内位置</span><input id="fSlot" autocomplete="off" placeholder="如：二层 左" /></label>
+      <label class="f"><span>数量</span><input id="fQty" autocomplete="off" placeholder="如：2 瓶" /></label>
+      <label class="f full"><span>备注</span><input id="fNote" autocomplete="off" placeholder="如：易燃，避光保存" /></label>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn" id="btnCancel">取消</button>
+      <button type="submit" class="btn primary">保存</button>
+    </div>
+  </form>
+</div>
+
+<!-- 统计 -->
+<div class="overlay" id="statsOverlay">
+  <div class="modal wide">
+    <div class="modal-head"><h2>统计</h2><button class="icon-btn" data-close title="关闭">✕</button></div>
+    <div id="statsBody"></div>
+  </div>
+</div>
+
+<!-- 数据 -->
+<div class="overlay" id="dataOverlay">
+  <div class="modal wide">
+    <div class="modal-head"><h2>数据与备份</h2><button class="icon-btn" data-close title="关闭">✕</button></div>
+    <p class="hint" id="storageHint">
+      数据保存在本机浏览器里（localStorage），不联网、不上传。清理浏览器数据、换电脑、换浏览器都会看不到，
+      所以<strong>建议每周导出一次 JSON 备份</strong>，换机器时导入即可。
+    </p>
+    <div class="btn-grid">
+      <button class="btn" id="btnExportJson">导出备份（JSON）</button>
+      <button class="btn" id="btnImportJson">导入备份（JSON）</button>
+      <button class="btn" id="btnExportCsv">导出表格（CSV，Excel 可开）</button>
+      <button class="btn" id="btnImportCsv">从 CSV 批量导入</button>
+      <button class="btn" id="btnPrint">打印当前清单</button>
+      <button class="btn danger" id="btnClear">清空全部数据</button>
+      <button class="btn" id="btnQuit" hidden>退出程序</button>
+    </div>
+    <p class="hint" style="margin-top:14px">
+      <strong>数据文件：</strong><code id="dataPath">浏览器本地存储（localStorage）</code>
+    </p>
+    <p class="hint" style="margin-top:14px">
+      CSV 表头可用：<code>名称、别名、CAS号、规格、类型、柜号、位置、数量、备注</code>；
+      导入按「名称 + 柜号 + 位置」判断，同一条会更新，不会重复添加。
+    </p>
+    <input type="file" id="fileJson" accept=".json,application/json" hidden />
+    <input type="file" id="fileCsv" accept=".csv,text/csv" hidden />
+  </div>
+</div>
+
+<datalist id="cabList">
+  <option value="一号柜"></option>
+  <option value="二号柜"></option>
+  <option value="三号柜"></option>
+  <option value="四号柜"></option>
+</datalist>
+<datalist id="catList">
+  <option value="无机盐"></option>
+  <option value="有机溶剂"></option>
+  <option value="酸碱"></option>
+  <option value="指示剂"></option>
+  <option value="氧化剂"></option>
+  <option value="还原剂"></option>
+  <option value="生物试剂"></option>
+  <option value="其他"></option>
+</datalist>
+
+<div id="toast"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ============ 常量 ============ */
+  var LS_KEY = 'reagent_locator_v1';
+  var CABINETS = ['一号柜', '二号柜', '三号柜', '四号柜'];
+  var CATS = ['无机盐', '有机溶剂', '酸碱', '指示剂', '氧化剂', '还原剂', '生物试剂', '其他'];
+  var CN = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十'];
+  var PALETTE = ['#2563eb', '#059669', '#d97706', '#7c3aed', '#db2777', '#0891b2', '#65a30d', '#dc2626'];
+  var collator = new Intl.Collator('zh-Hans-CN');
+
+  /* ============ 元素 ============ */
+  function $(sel) { return document.querySelector(sel); }
+  var el = {
+    q: $('#q'), qClear: $('#qClear'),
+    cabChips: $('#cabChips'), catChips: $('#catChips'),
+    count: $('#count'), status: $('#status'), sort: $('#sort'),
+    list: $('#list'), printHead: $('#printHead'),
+    tip: $('#tip'), tipClear: $('#tipClear'), tipClose: $('#tipClose'),
+    btnAdd: $('#btnAdd'), btnStats: $('#btnStats'), btnData: $('#btnData'),
+    overlay: $('#overlay'), form: $('#form'), formTitle: $('#formTitle'),
+    fName: $('#fName'), fAlias: $('#fAlias'), fCas: $('#fCas'), fSpec: $('#fSpec'),
+    fCat: $('#fCat'), fCab: $('#fCab'), fSlot: $('#fSlot'), fQty: $('#fQty'), fNote: $('#fNote'),
+    btnCancel: $('#btnCancel'),
+    statsOverlay: $('#statsOverlay'), statsBody: $('#statsBody'),
+    dataOverlay: $('#dataOverlay'),
+    btnExportJson: $('#btnExportJson'), btnImportJson: $('#btnImportJson'),
+    btnExportCsv: $('#btnExportCsv'), btnImportCsv: $('#btnImportCsv'),
+    btnPrint: $('#btnPrint'), btnClear: $('#btnClear'), btnQuit: $('#btnQuit'),
+    fileJson: $('#fileJson'), fileCsv: $('#fileCsv'),
+    dataPath: $('#dataPath'), storageHint: $('#storageHint'),
+    toast: $('#toast')
+  };
+
+  /* ============ 状态 ============ */
+  var items = [];
+  var state = { q: '', cab: '', cat: '', sort: 'cab' };
+  var editingId = null;
+  var storageOk = true;
+  var toastTimer = null;
+  var remote = null;        // 非空表示由 exe 后端提供存储（data.json）
+  var saveTimer = null;
+
+  /* ============ 工具 ============ */
+  function uid() { return 'i' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function pad(n) { return n < 10 ? '0' + n : '' + n; }
+
+  function toast(msg) {
+    el.toast.textContent = msg;
+    el.toast.classList.add('on');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { el.toast.classList.remove('on'); }, 2200);
+  }
+
+  function cabIndex(cab) {
+    var s = String(cab || '');
+    var m = s.match(/\d+/);
+    if (m) { var n = parseInt(m[0], 10); if (n > 0) return n; }
+    for (var i = 1; i < CN.length; i++) { if (s.indexOf(CN[i]) >= 0) return i; }
+    return 99;
+  }
+
+  function cabColor(cab) {
+    var n = cabIndex(cab);
+    if (!cab || n === 99) return '#64748b';
+    return PALETTE[(n - 1) % PALETTE.length];
+  }
+
+  function rgba(hex, a) {
+    var n = parseInt(hex.slice(1), 16);
+    return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
+  }
+
+  function uniq(arr) {
+    var out = [];
+    for (var i = 0; i < arr.length; i++) {
+      var v = arr[i];
+      if (v && out.indexOf(v) === -1) out.push(v);
+    }
+    return out;
+  }
+
+  /* 让「一号柜」能被「1号柜」「柜1」「1」搜到 */
+  function cabTokens(cab) {
+    var s = String(cab || '').toLowerCase();
+    var out = [s];
+    var m = s.match(/\d+/);
+    var n = m ? parseInt(m[0], 10) : 0;
+    if (!n) {
+      for (var i = 1; i < CN.length; i++) { if (s.indexOf(CN[i]) >= 0) { n = i; break; } }
+    }
+    if (n > 0 && n < 11) {
+      out.push(n + '号柜', n + '号', '柜' + n, '' + n);
+      out.push(CN[n] + '号柜', CN[n] + '号');
+    }
+    return out.join(' ');
+  }
+
+  function hay(it) {
+    return [it.name, it.alias, it.cas, it.spec, it.category, it.slot, it.qty, it.note, cabTokens(it.cabinet)]
+      .filter(Boolean).join(' ').toLowerCase();
+  }
+
+  function tokens() {
+    return state.q.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  }
+
+  function hl(text, ts) {
+    var e = esc(text);
+    if (!ts.length || !text) return e;
+    var pat = ts.map(function (t) { return t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }).join('|');
+    try { return e.replace(new RegExp('(' + pat + ')', 'gi'), '<mark>$1</mark>'); }
+    catch (err) { return e; }
+  }
+
+  /* ============ 数据存取 ============ */
+  function seed() {
+    var now = Date.now();
+    var rows = [
+      ['氯化钠', 'NaCl sodium chloride 食盐', '7647-14-5', 'AR 500g', '无机盐', '一号柜', '二层 左', '2 瓶', ''],
+      ['硫酸铜', 'CuSO4 五水硫酸铜 胆矾', '7758-98-7', 'AR 500g', '无机盐', '一号柜', '三层 中', '1 瓶', ''],
+      ['无水乙醇', '乙醇 ethanol C2H5OH', '64-17-5', 'AR 500mL', '有机溶剂', '二号柜', '一层 右', '3 瓶', '易燃'],
+      ['丙酮', 'acetone C3H6O', '67-64-1', 'AR 500mL', '有机溶剂', '二号柜', '一层 左', '2 瓶', '易燃，通风'],
+      ['盐酸', 'HCl 氢氯酸', '7647-01-0', '36%~38% 500mL', '酸碱', '三号柜', '底层 通风', '1 瓶', '腐蚀性'],
+      ['氢氧化钠', 'NaOH 烧碱 火碱', '1310-73-2', 'AR 500g', '酸碱', '三号柜', '二层 右', '2 瓶', '腐蚀性'],
+      ['过氧化氢', 'H2O2 双氧水', '7722-84-1', '30% 500mL', '氧化剂', '三号柜', '底层 避光', '1 瓶', '避光'],
+      ['酚酞', 'phenolphthalein', '77-09-8', '1% 乙醇溶液 100mL', '指示剂', '四号柜', '一层 左', '1 瓶', ''],
+      ['琼脂糖', 'agarose', '9012-36-6', '生物级 100g', '生物试剂', '四号柜', '二层 右', '1 瓶', '']
+    ];
+    return rows.map(function (r, i) {
+      return {
+        id: 'seed' + i, name: r[0], alias: r[1], cas: r[2], spec: r[3],
+        category: r[4], cabinet: r[5], slot: r[6], qty: r[7], note: r[8],
+        updatedAt: now - i * 1000
+      };
+    });
+  }
+
+  function loadAll() {
+    var raw = null;
+    try { raw = localStorage.getItem(LS_KEY); }
+    catch (e) { storageOk = false; }
+    if (raw) {
+      try {
+        var p = JSON.parse(raw);
+        var arr = Array.isArray(p) ? p : (p && Array.isArray(p.items) ? p.items : null);
+        if (arr) return { items: arr.filter(validItem).map(fixItem), seeded: false };
+      } catch (e2) { /* 损坏则回退示例 */ }
+    }
+    return { items: seed(), seeded: true };
+  }
+
+  function validItem(x) { return x && typeof x === 'object' && String(x.name || '').trim() !== ''; }
+
+  function fixItem(x) {
+    var o = {};
+    for (var k in x) { if (Object.prototype.hasOwnProperty.call(x, k)) o[k] = x[k]; }
+    o.id = o.id || uid();
+    ['name', 'alias', 'cas', 'spec', 'category', 'cabinet', 'slot', 'qty', 'note'].forEach(function (k) {
+      o[k] = o[k] == null ? '' : String(o[k]).trim();
+    });
+    o.updatedAt = Number(o.updatedAt) || Date.now();
+    return o;
+  }
+
+  function persist() {
+    if (remote) {
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(flushRemote, 250);
+      el.status.classList.remove('warn');
+      el.status.textContent = '保存中…';
+      return;
+    }
+    try {
+      localStorage.setItem(LS_KEY, JSON.stringify(items));
+      storageOk = true;
+    } catch (e) {
+      storageOk = false;
+    }
+    paintStatus();
+  }
+
+  /* 把当前数据写回 exe 同目录的 data.json */
+  function flushRemote() {
+    fetch('api/state', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: items })
+    }).then(function (r) {
+      if (!r.ok) throw new Error('bad status');
+      return r.json();
+    }).then(function (j) {
+      remote.savedAt = j.savedAt;
+      if (j.dataPath) { remote.dataPath = j.dataPath; el.dataPath.textContent = j.dataPath; }
+      paintStatus();
+    }).catch(function () {
+      el.status.textContent = '⚠ 保存失败，请确认程序还在运行';
+      el.status.classList.add('warn');
+    });
+  }
+
+  function paintStatus() {
+    if (remote) {
+      var rd = new Date();
+      el.status.classList.remove('warn');
+      el.status.textContent = '已保存 data.json ' + pad(rd.getHours()) + ':' + pad(rd.getMinutes());
+      return;
+    }
+    if (!storageOk) {
+      el.status.textContent = '⚠ 本地存储不可用，请导出备份';
+      el.status.classList.add('warn');
+      return;
+    }
+    var d = new Date();
+    el.status.classList.remove('warn');
+    el.status.textContent = '已保存 ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  }
+
+  /* ============ 筛选与渲染 ============ */
+  function filtered() {
+    var ts = tokens();
+    var arr = items.filter(function (it) {
+      if (state.cab === '__none__' ? !!it.cabinet : (state.cab && it.cabinet !== state.cab)) return false;
+      if (state.cat === '__none__' ? !!it.category : (state.cat && it.category !== state.cat)) return false;
+      if (!ts.length) return true;
+      var h = hay(it);
+      for (var i = 0; i < ts.length; i++) { if (h.indexOf(ts[i]) < 0) return false; }
+      return true;
+    });
+    var s = state.sort;
+    arr.sort(function (a, b) {
+      if (s === 'name') return collator.compare(a.name, b.name);
+      if (s === 'recent') return b.updatedAt - a.updatedAt;
+      if (s === 'cat') return collator.compare(a.category || 'zz', b.category || 'zz') || collator.compare(a.name, b.name);
+      return cabIndex(a.cabinet) - cabIndex(b.cabinet) ||
+        collator.compare(a.slot || '', b.slot || '') ||
+        collator.compare(a.name, b.name);
+    });
+    return arr;
+  }
+
+  function chipHTML(kind, value, label, n) {
+    var active = (kind === 'cab' ? state.cab : state.cat) === value;
+    return '<button class="chip' + (active ? ' on' : '') + '" data-' + kind + '="' + esc(value) + '">' +
+      esc(label) + '<span class="n">' + n + '</span></button>';
+  }
+
+  function renderChips() {
+    var ts = tokens();
+    var base = items.filter(function (it) {
+      if (!ts.length) return true;
+      var h = hay(it);
+      for (var i = 0; i < ts.length; i++) { if (h.indexOf(ts[i]) < 0) return false; }
+      return true;
+    });
+
+    var cabs = uniq(CABINETS.concat(items.map(function (i) { return i.cabinet; })));
+    cabs.sort(function (a, b) { return cabIndex(a) - cabIndex(b) || collator.compare(a, b); });
+
+    el.cabChips.innerHTML = chipHTML('cab', '', '全部柜位', base.length) +
+      cabs.map(function (c) {
+        return chipHTML('cab', c, c, base.filter(function (i) { return i.cabinet === c; }).length);
+      }).join('');
+
+    var base2 = base.filter(function (it) { return !state.cab || it.cabinet === state.cab; });
+    var cats = uniq(CATS.concat(items.map(function (i) { return i.category; })));
+    cats.sort(function (a, b) {
+      var ia = CATS.indexOf(a); if (ia < 0) ia = 99;
+      var ib = CATS.indexOf(b); if (ib < 0) ib = 99;
+      return ia - ib || collator.compare(a, b);
+    });
+
+    el.catChips.innerHTML = chipHTML('cat', '', '全部类型', base2.length) +
+      cats.map(function (c) {
+        return chipHTML('cat', c, c, base2.filter(function (i) { return i.category === c; }).length);
+      }).join('');
+  }
+
+  function cardHTML(it) {
+    var ts = tokens();
+    var c = cabColor(it.cabinet);
+    var subParts = [];
+    if (it.alias) subParts.push(hl(it.alias, ts));
+    if (it.cas) subParts.push('CAS ' + hl(it.cas, ts));
+    var tags = [];
+    if (it.spec) tags.push('<span class="t">' + hl(it.spec, ts) + '</span>');
+    if (it.category) tags.push('<span class="t">' + hl(it.category, ts) + '</span>');
+    if (it.qty) tags.push('<span class="t qty">' + hl(it.qty, ts) + '</span>');
+    if (it.note) tags.push('<span class="t">' + hl(it.note, ts) + '</span>');
+
+    var locText = (it.cabinet || '未填柜号') + (it.slot ? ' · ' + it.slot : '');
+    var pin = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.4"/></svg>';
+
+    return '<article class="card" style="--c:' + c + '">' +
+      '<div class="acts">' +
+        '<button class="icon-btn" data-act="edit" data-id="' + esc(it.id) + '" title="编辑">✎</button>' +
+        '<button class="icon-btn del" data-act="del" data-id="' + esc(it.id) + '" title="删除">✕</button>' +
+      '</div>' +
+      '<h3>' + hl(it.name, ts) + '</h3>' +
+      '<div class="sub">' + (subParts.join(' · ') || '&nbsp;') + '</div>' +
+      '<div class="loc" style="color:' + c + ';border-color:' + rgba(c, .3) + ';background:' + rgba(c, .07) + '">' +
+        pin + '<span>' + hl(locText, ts) + '</span>' +
+      '</div>' +
+      (tags.length ? '<div class="tags">' + tags.join('') + '</div>' : '') +
+    '</article>';
+  }
+
+  function emptyHTML() {
+    var q = state.q.trim();
+    return '<div class="empty">' +
+      '<div class="big">' + (items.length ? '没找到匹配的材料' : '还没有录入任何材料') + '</div>' +
+      '<p>' + (items.length
+        ? '试试只输入一个关键词（如「氯化钠」「NaCl」「一号柜」），或点「全部柜位 / 全部类型」重置筛选。'
+        : '从第一条试剂开始，录入后就能按名称、化学式、柜号搜索了。') + '</p>' +
+      '<button class="btn primary" data-act="add">' + (q ? '把「' + esc(q) + '」新增进去' : '+ 新增第一条') + '</button>' +
+    '</div>';
+  }
+
+  function render() {
+    renderChips();
+    var arr = filtered();
+    var filtering = !!(state.q.trim() || state.cab || state.cat);
+    el.count.textContent = filtering
+      ? '筛出 ' + arr.length + ' 条 / 共 ' + items.length + ' 条'
+      : '共 ' + items.length + ' 条材料';
+    el.list.innerHTML = arr.length ? arr.map(cardHTML).join('') : emptyHTML();
+    el.qClear.hidden = !state.q;
+    el.printHead.textContent = '试剂柜清单 · ' + new Date().toLocaleDateString('zh-CN') + ' · 共 ' + items.length + ' 条';
+  }
+
+  /* ============ 新增 / 编辑 ============ */
+  function openForm(it, fromEmpty) {
+    editingId = it ? it.id : null;
+    el.formTitle.textContent = it ? '编辑材料' : '新增材料';
+    el.fName.value = it ? it.name : (fromEmpty && state.q.trim() && !/\s/.test(state.q.trim()) ? state.q.trim() : '');
+    el.fAlias.value = it ? it.alias : '';
+    el.fCas.value = it ? it.cas : '';
+    el.fSpec.value = it ? it.spec : '';
+    el.fCat.value = it ? it.category : (state.cat || '');
+    el.fCab.value = it ? it.cabinet : (state.cab || '');
+    el.fSlot.value = it ? it.slot : '';
+    el.fQty.value = it ? it.qty : '';
+    el.fNote.value = it ? it.note : '';
+    el.overlay.classList.add('on');
+    document.body.classList.add('locked');
+    setTimeout(function () { el.fName.focus(); el.fName.select(); }, 40);
+  }
+
+  function closeForm() {
+    el.overlay.classList.remove('on');
+    document.body.classList.remove('locked');
+    editingId = null;
+  }
+
+  function saveForm(ev) {
+    ev.preventDefault();
+    var data = {
+      name: el.fName.value.trim(),
+      alias: el.fAlias.value.trim(),
+      cas: el.fCas.value.trim(),
+      spec: el.fSpec.value.trim(),
+      category: el.fCat.value.trim(),
+      cabinet: el.fCab.value.trim(),
+      slot: el.fSlot.value.trim(),
+      qty: el.fQty.value.trim(),
+      note: el.fNote.value.trim()
+    };
+    if (!data.name) {
+      toast('请先填写名称');
+      el.fName.focus();
+      return;
+    }
+    var isEdit = applyItem(data);
+    closeForm();
+    state.q = ''; el.q.value = '';
+    state.cab = ''; state.cat = '';
+    render();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    toast(isEdit ? '已保存修改' : '已新增「' + data.name + '」');
+  }
+
+  /* 写入一条数据；编辑时按 editingId 覆盖。返回是否属于编辑。 */
+  function applyItem(data) {
+    var isEdit = false;
+    if (editingId) {
+      var idx = items.findIndex(function (x) { return x.id === editingId; });
+      if (idx >= 0) {
+        items[idx] = Object.assign({}, items[idx], data, { updatedAt: Date.now() });
+        isEdit = true;
+      }
+    }
+    if (!isEdit) {
+      items.push(Object.assign({ id: uid() }, data, { updatedAt: Date.now() }));
+    }
+    persist();
+    return isEdit;
+  }
+
+  function removeItem(it) {
+    if (!confirm('确定删除「' + it.name + '」？\n删除后不可恢复。')) return;
+    items = items.filter(function (x) { return x.id !== it.id; });
+    persist(); render();
+    toast('已删除');
+  }
+
+  /* ============ 统计 ============ */
+  function groupBy(key) {
+    var m = new Map();
+    items.forEach(function (it) {
+      var k = it[key] || '';
+      m.set(k, (m.get(k) || 0) + 1);
+    });
+    return m;
+  }
+
+  function barsHTML(map, kind) {
+    var max = 1;
+    map.forEach(function (v) { if (v > max) max = v; });
+    var entries = Array.from(map.entries());
+    entries.sort(function (a, b) {
+      if (kind === 'cab') return cabIndex(a[0]) - cabIndex(b[0]);
+      return b[1] - a[1] || collator.compare(a[0], b[0]);
+    });
+    return entries.map(function (e) {
+      var pct = Math.max(3, Math.round(e[1] / max * 100));
+      var val = e[0] === '' ? '__none__' : e[0];
+      var label = e[0] === '' ? '(未填)' : e[0];
+      return '<div class="bar-row" data-' + kind + '="' + esc(val) + '" title="点击只看这一项">' +
+        '<span class="lab">' + esc(label) + '</span>' +
+        '<span class="track"><span class="fill" style="width:' + pct + '%"></span></span>' +
+        '<span class="num">' + e[1] + '</span>' +
+      '</div>';
+    }).join('');
+  }
+
+  function openStats() {
+    var total = items.length;
+    var cabs = groupBy('cabinet');
+    var cats = groupBy('category');
+    var noSlot = items.filter(function (i) { return !i.slot; }).length;
+    el.statsBody.innerHTML =
+      '<div class="stat-cards">' +
+        '<div class="sc"><b>' + total + '</b><span>材料总数</span></div>' +
+        '<div class="sc"><b>' + cabs.size + '</b><span>用到的柜子</span></div>' +
+        '<div class="sc"><b>' + cats.size + '</b><span>材料类型</span></div>' +
+        '<div class="sc' + (noSlot ? ' warn' : '') + '"><b>' + noSlot + '</b><span>未填柜内位置</span></div>' +
+      '</div>' +
+      '<h3>按柜子分布（点一下只看该柜）</h3>' + (cabs.size ? barsHTML(cabs, 'cab') : '<p class="hint">暂无数据</p>') +
+      '<h3>按类型分布（点一下只看该类型）</h3>' + (cats.size ? barsHTML(cats, 'cat') : '<p class="hint">暂无数据</p>');
+    el.statsOverlay.classList.add('on');
+    document.body.classList.add('locked');
+  }
+
+  /* ============ 导入 / 导出 ============ */
+  function download(name, text, mime) {
+    var blob = new Blob([text], { type: mime + ';charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 800);
+  }
+
+  function today() {
+    var d = new Date();
+    return d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate());
+  }
+
+  function exportJson() {
+    var payload = { app: 'reagent-locator', version: 1, exportedAt: new Date().toISOString(), items: items };
+    download('试剂柜备份_' + today() + '.json', JSON.stringify(payload, null, 2), 'application/json');
+    toast('已导出 JSON 备份');
+  }
+
+  function csvCell(v) {
+    var s = String(v == null ? '' : v);
+    return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }
+
+  function exportCsv() {
+    var head = ['名称', '别名', 'CAS号', '规格', '类型', '柜号', '位置', '数量', '备注'];
+    var lines = [head.join(',')];
+    filtered().forEach(function (it) {
+      lines.push([it.name, it.alias, it.cas, it.spec, it.category, it.cabinet, it.slot, it.qty, it.note]
+        .map(csvCell).join(','));
+    });
+    download('试剂柜清单_' + today() + '.csv', '\uFEFF' + lines.join('\r\n'), 'text/csv');
+    toast('已导出 CSV，可用 Excel 打开');
+  }
+
+  function normalize(raw) {
+    if (!raw || typeof raw !== 'object') return null;
+    function pick() {
+      for (var i = 0; i < arguments.length; i++) {
+        var v = raw[arguments[i]];
+        if (v !== undefined && v !== null && String(v).trim() !== '') return String(v).trim();
+      }
+      return '';
+    }
+    var name = pick('name', '名称', '中文名', '品名', '试剂', '材料');
+    if (!name) return null;
+    return {
+      name: name,
+      alias: pick('alias', '别名', '英文名', '化学式'),
+      cas: pick('cas', 'CAS', 'cas号', 'CAS号'),
+      spec: pick('spec', '规格'),
+      category: pick('category', '类型', '分类', '类别'),
+      cabinet: pick('cabinet', '柜号', '柜子', '柜'),
+      slot: pick('slot', '柜内位置', '位置', '层', '存放位置'),
+      qty: pick('qty', '数量', '库存'),
+      note: pick('note', '备注', '说明')
+    };
+  }
+
+  function mergeItems(list) {
+    var key = function (it) { return [it.name, it.cabinet, it.slot].join('|'); };
+    var map = new Map();
+    items.forEach(function (it) { map.set(key(it), it); });
+    var added = 0, updated = 0;
+    list.forEach(function (raw) {
+      var it = normalize(raw);
+      if (!it) return;
+      var k = key(it);
+      if (map.has(k)) {
+        Object.assign(map.get(k), it, { updatedAt: Date.now() });
+        updated++;
+      } else {
+        map.set(k, Object.assign({ id: uid(), updatedAt: Date.now() }, it));
+        added++;
+      }
+    });
+    items = Array.from(map.values());
+    return { added: added, updated: updated };
+  }
+
+  function parseCsv(text) {
+    text = String(text).replace(/^\uFEFF/, '');
+    var rows = [], row = [], field = '', inQ = false;
+    for (var i = 0; i < text.length; i++) {
+      var c = text[i];
+      if (inQ) {
+        if (c === '"') {
+          if (text[i + 1] === '"') { field += '"'; i++; } else { inQ = false; }
+        } else field += c;
+      } else if (c === '"') {
+        inQ = true;
+      } else if (c === ',') {
+        row.push(field); field = '';
+      } else if (c === '\n') {
+        row.push(field); rows.push(row); row = []; field = '';
+      } else if (c !== '\r') {
+        field += c;
+      }
+    }
+    if (field !== '' || row.length) { row.push(field); rows.push(row); }
+    return rows.filter(function (r) { return r.some(function (c) { return String(c).trim() !== ''; }); });
+  }
+
+  var HEADER_ALIASES = {
+    name: ['名称', '中文名', '品名', '试剂', '材料', 'name'],
+    alias: ['别名', '英文名', '化学式', '分子式', 'alias'],
+    cas: ['cas号', 'cas', 'casno', 'cas编号'],
+    spec: ['规格', '型号', '包装', '纯度', 'spec'],
+    category: ['类型', '分类', '类别', 'category'],
+    cabinet: ['柜号', '柜子', '柜', 'cabinet'],
+    slot: ['柜内位置', '位置', '层', '存放位置', 'slot'],
+    qty: ['数量', '库存', 'qty'],
+    note: ['备注', '说明', 'note']
+  };
+
+  function importCsvText(text) {
+    var rows = parseCsv(text);
+    if (rows.length < 2) throw new Error('CSV 里至少需要一行表头和一行数据');
+    var header = rows[0];
+    var keys = header.map(function (h) {
+      var norm = String(h).replace(/\s+/g, '').toLowerCase();
+      for (var k in HEADER_ALIASES) {
+        if (HEADER_ALIASES[k].some(function (a) { return a.toLowerCase() === norm; })) return k;
+      }
+      return null;
+    });
+    if (keys.indexOf('name') < 0) throw new Error('没有找到「名称」列，请检查表头');
+    var list = rows.slice(1).map(function (r) {
+      var o = {};
+      keys.forEach(function (k, i) { if (k) o[k] = r[i] != null ? String(r[i]).trim() : ''; });
+      return o;
+    });
+    var res = mergeItems(list);
+    persist(); render();
+    toast('导入完成：新增 ' + res.added + ' 条，更新 ' + res.updated + ' 条');
+    return res;
+  }
+
+  function readFile(file, cb) {
+    if (file.text) { file.text().then(cb).catch(function () { alert('读取文件失败'); }); return; }
+    var fr = new FileReader();
+    fr.onload = function () { cb(String(fr.result)); };
+    fr.onerror = function () { alert('读取文件失败'); };
+    fr.readAsText(file, 'utf-8');
+  }
+
+  /* ============ 事件 ============ */
+  var qTimer = null;
+  el.q.addEventListener('input', function () {
+    state.q = el.q.value;
+    el.qClear.hidden = !state.q;
+    clearTimeout(qTimer);
+    qTimer = setTimeout(render, 60);
+  });
+
+  el.qClear.addEventListener('click', function () {
+    el.q.value = ''; state.q = ''; el.qClear.hidden = true; render(); el.q.focus();
+  });
+
+  el.cabChips.addEventListener('click', function (e) {
+    var b = e.target.closest('.chip');
+    if (!b) return;
+    state.cab = b.dataset.cab || '';
+    render();
+  });
+
+  el.catChips.addEventListener('click', function (e) {
+    var b = e.target.closest('.chip');
+    if (!b) return;
+    state.cat = b.dataset.cat || '';
+    render();
+  });
+
+  el.sort.addEventListener('change', function () {
+    state.sort = el.sort.value;
+    render();
+  });
+
+  el.list.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-act]');
+    if (!b) return;
+    var act = b.dataset.act;
+    if (act === 'add') { openForm(null, true); return; }
+    var it = items.find(function (x) { return x.id === b.dataset.id; });
+    if (!it) return;
+    if (act === 'edit') openForm(it, false);
+    if (act === 'del') removeItem(it);
+  });
+
+  el.btnAdd.addEventListener('click', function () { openForm(null, false); });
+  el.btnCancel.addEventListener('click', closeForm);
+  el.form.addEventListener('submit', saveForm);
+
+  el.form.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && e.target.tagName === 'INPUT') {
+      e.preventDefault();
+      saveForm(e);
+    }
+  });
+
+  el.overlay.addEventListener('click', function (e) {
+    if (e.target === el.overlay) closeForm();
+  });
+
+  el.btnStats.addEventListener('click', openStats);
+
+  el.statsOverlay.addEventListener('click', function (e) {
+    if (e.target === el.statsOverlay || e.target.closest('[data-close]')) {
+      el.statsOverlay.classList.remove('on');
+      document.body.classList.remove('locked');
+      return;
+    }
+    var row = e.target.closest('.bar-row');
+    if (row) {
+      if (row.dataset.cab !== undefined) state.cab = row.dataset.cab;
+      if (row.dataset.cat !== undefined) state.cat = row.dataset.cat;
+      el.statsOverlay.classList.remove('on');
+      document.body.classList.remove('locked');
+      render();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  });
+
+  el.btnData.addEventListener('click', function () {
+    el.dataOverlay.classList.add('on');
+    document.body.classList.add('locked');
+  });
+
+  el.dataOverlay.addEventListener('click', function (e) {
+    if (e.target === el.dataOverlay || e.target.closest('[data-close]')) {
+      el.dataOverlay.classList.remove('on');
+      document.body.classList.remove('locked');
+    }
+  });
+
+  el.btnExportJson.addEventListener('click', exportJson);
+  el.btnExportCsv.addEventListener('click', exportCsv);
+
+  el.btnImportJson.addEventListener('click', function () { el.fileJson.click(); });
+  el.btnImportCsv.addEventListener('click', function () { el.fileCsv.click(); });
+
+  el.fileJson.addEventListener('change', function (e) {
+    var f = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!f) return;
+    readFile(f, function (text) {
+      try {
+        var p = JSON.parse(text);
+        var arr = Array.isArray(p) ? p : (p && Array.isArray(p.items) ? p.items : null);
+        if (!arr) throw new Error('不认识的 JSON 结构');
+        var res = mergeItems(arr);
+        persist(); render();
+        toast('导入完成：新增 ' + res.added + ' 条，更新 ' + res.updated + ' 条');
+      } catch (err) {
+        alert('导入失败：' + err.message);
+      }
+    });
+  });
+
+  el.fileCsv.addEventListener('change', function (e) {
+    var f = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!f) return;
+    readFile(f, function (text) {
+      try { importCsvText(text); }
+      catch (err) { alert('导入失败：' + err.message); }
+    });
+  });
+
+  el.btnPrint.addEventListener('click', function () {
+    el.dataOverlay.classList.remove('on');
+    document.body.classList.remove('locked');
+    setTimeout(function () { window.print(); }, 80);
+  });
+
+  el.btnClear.addEventListener('click', function () {
+    if (!items.length) { toast('目前没有数据'); return; }
+    if (!confirm('确定清空全部 ' + items.length + ' 条数据？\n\n建议先「导出备份（JSON）」。清空后无法恢复。')) return;
+    items = [];
+    persist(); render();
+    el.dataOverlay.classList.remove('on');
+    document.body.classList.remove('locked');
+    toast('已清空');
+  });
+
+  el.tipClear.addEventListener('click', function () {
+    if (!confirm('清空示例数据，开始录入自己的材料？')) return;
+    items = [];
+    persist(); render();
+    el.tip.classList.remove('on');
+    toast('示例已清空，点右上角「+ 新增」开始');
+  });
+
+  el.tipClose.addEventListener('click', function () { el.tip.classList.remove('on'); });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+      if (el.overlay.classList.contains('on')) { closeForm(); return; }
+      if (el.statsOverlay.classList.contains('on') || el.dataOverlay.classList.contains('on')) {
+        el.statsOverlay.classList.remove('on');
+        el.dataOverlay.classList.remove('on');
+        document.body.classList.remove('locked');
+        return;
+      }
+      if (state.q) { el.q.value = ''; state.q = ''; render(); }
+      return;
+    }
+    if (e.key === '/' && document.activeElement === document.body) {
+      e.preventDefault();
+      el.q.focus();
+    }
+  });
+
+  /* ============ 启动 ============ */
+  function isDemoSet() {
+    if (items.length !== 9) return false;
+    return items.every(function (i) { return String(i.id).indexOf('seed') === 0; });
+  }
+
+  function startUI() {
+    if (isDemoSet()) el.tip.classList.add('on');
+    render();
+    paintStatus();
+  }
+
+  function startLocal() {
+    var loaded = loadAll();
+    items = loaded.items;
+    startUI();
+    if (loaded.seeded) persist();
+  }
+
+  function startRemote(j) {
+    remote = j;
+    items = j.items.map(fixItem);
+    if (j.dataPath) el.dataPath.textContent = j.dataPath;
+    el.btnQuit.hidden = false;
+    el.storageHint.innerHTML =
+      '数据保存在 <strong>exe 同目录的 data.json</strong>，每次改动自动写入，不联网、不上传。' +
+      '换电脑时把整个文件夹（exe + data.json）复制过去即可继续使用。';
+    startUI();
+  }
+
+  function boot() {
+    if (location.protocol === 'file:') { startLocal(); return; }
+    fetch('api/state', { cache: 'no-store' })
+      .then(function (r) { if (!r.ok) throw new Error('http'); return r.json(); })
+      .then(function (j) {
+        if (!j || !Array.isArray(j.items)) throw new Error('shape');
+        startRemote(j);
+      })
+      .catch(function () { startLocal(); });
+  }
+
+  el.btnQuit.addEventListener('click', function () {
+    if (!confirm('确定退出程序？\n\n数据已经保存在 data.json，下次双击 exe 即可继续。')) return;
+    fetch('api/quit', { method: 'POST' }).catch(function () {});
+    document.body.innerHTML = '<div class="bye"><div><h2>程序已退出</h2>' +
+      '<p>data.json 已保存，可以关闭这个标签页。下次双击 exe 继续使用。</p></div></div>';
+  });
+
+  boot();
+
+  // 暴露给手动调试 / 自动化自检
+  window.__reagentApp = {
+    get items() { return items; },
+    get remote() { return remote; },
+    state: state,
+    render: render,
+    filtered: filtered,
+    tokens: tokens,
+    parseCsv: parseCsv,
+    mergeItems: mergeItems,
+    importCsvText: importCsvText,
+    applyItem: applyItem,
+    exportCsvText: function () {
+      var head = ['名称', '别名', 'CAS号', '规格', '类型', '柜号', '位置', '数量', '备注'];
+      var lines = [head.join(',')];
+      filtered().forEach(function (it) {
+        lines.push([it.name, it.alias, it.cas, it.spec, it.category, it.cabinet, it.slot, it.qty, it.note]
+          .map(csvCell).join(','));
+      });
+      return lines.join('\r\n');
+    },
+    setQuery: function (q) { state.q = q; render(); },
+    listHtml: function () { return el.list.innerHTML; }
+  };
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,123 @@
+{
+  "app": "reagent-locator",
+  "savedAt": null,
+  "items": [
+    {
+      "id": "seed0",
+      "name": "氯化钠",
+      "alias": "NaCl sodium chloride 食盐",
+      "cas": "7647-14-5",
+      "spec": "AR 500g",
+      "category": "无机盐",
+      "cabinet": "一号柜",
+      "slot": "二层 左",
+      "qty": "2 瓶",
+      "note": "",
+      "updatedAt": 1793020286017
+    },
+    {
+      "id": "seed1",
+      "name": "硫酸铜",
+      "alias": "CuSO4 五水硫酸铜 胆矾",
+      "cas": "7758-98-7",
+      "spec": "AR 500g",
+      "category": "无机盐",
+      "cabinet": "一号柜",
+      "slot": "三层 中",
+      "qty": "1 瓶",
+      "note": "",
+      "updatedAt": 1793020285017
+    },
+    {
+      "id": "seed2",
+      "name": "无水乙醇",
+      "alias": "乙醇 ethanol C2H5OH",
+      "cas": "64-17-5",
+      "spec": "AR 500mL",
+      "category": "有机溶剂",
+      "cabinet": "二号柜",
+      "slot": "一层 右",
+      "qty": "3 瓶",
+      "note": "易燃",
+      "updatedAt": 1793020284017
+    },
+    {
+      "id": "seed3",
+      "name": "丙酮",
+      "alias": "acetone C3H6O",
+      "cas": "67-64-1",
+      "spec": "AR 500mL",
+      "category": "有机溶剂",
+      "cabinet": "二号柜",
+      "slot": "一层 左",
+      "qty": "2 瓶",
+      "note": "易燃，通风",
+      "updatedAt": 1793020283017
+    },
+    {
+      "id": "seed4",
+      "name": "盐酸",
+      "alias": "HCl 氢氯酸",
+      "cas": "7647-01-0",
+      "spec": "36%~38% 500mL",
+      "category": "酸碱",
+      "cabinet": "三号柜",
+      "slot": "底层 通风",
+      "qty": "1 瓶",
+      "note": "腐蚀性",
+      "updatedAt": 1793020282017
+    },
+    {
+      "id": "seed5",
+      "name": "氢氧化钠",
+      "alias": "NaOH 烧碱 火碱",
+      "cas": "1310-73-2",
+      "spec": "AR 500g",
+      "category": "酸碱",
+      "cabinet": "三号柜",
+      "slot": "二层 右",
+      "qty": "2 瓶",
+      "note": "腐蚀性",
+      "updatedAt": 1793020281017
+    },
+    {
+      "id": "seed6",
+      "name": "过氧化氢",
+      "alias": "H2O2 双氧水",
+      "cas": "7722-84-1",
+      "spec": "30% 500mL",
+      "category": "氧化剂",
+      "cabinet": "三号柜",
+      "slot": "底层 避光",
+      "qty": "1 瓶",
+      "note": "避光",
+      "updatedAt": 1793020280017
+    },
+    {
+      "id": "seed7",
+      "name": "酚酞",
+      "alias": "phenolphthalein",
+      "cas": "77-09-8",
+      "spec": "1% 乙醇溶液 100mL",
+      "category": "指示剂",
+      "cabinet": "四号柜",
+      "slot": "一层 左",
+      "qty": "1 瓶",
+      "note": "",
+      "updatedAt": 1793020279017
+    },
+    {
+      "id": "seed8",
+      "name": "琼脂糖",
+      "alias": "agarose",
+      "cas": "9012-36-6",
+      "spec": "生物级 100g",
+      "category": "生物试剂",
+      "cabinet": "四号柜",
+      "slot": "二层 右",
+      "qty": "1 瓶",
+      "note": "",
+      "updatedAt": 1793020278017
+    }
+  ]
+}

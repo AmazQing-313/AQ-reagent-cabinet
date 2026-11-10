@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*.spec
+.venv/
+venv/
+
+# 打包产物
+build/
+dist/
+
+# 本地数据（不要提交个人试剂清单）
+data.json
+备份/
+
+# 杂项
+*.log
+.DS_Store
+Thumbs.db
